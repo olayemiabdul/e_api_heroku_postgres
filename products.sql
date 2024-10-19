@@ -5,5 +5,7 @@ CREATE TABLE products (
   price NUMERIC(10, 2) NOT NULL,
   quantity INT NOT NULL,
   image BYTEA,  -- For storing binary data like images
-  mimetype VARCHAR(255)
+  mimetype VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
