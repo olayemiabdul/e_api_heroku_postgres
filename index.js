@@ -74,6 +74,7 @@ app.post('/shoes', upload.single('image'), async (req, res) => {
 app.get('/products', async (req, res) => {
   try {
     const result = await myDb.query('SELECT * FROM products');
+    
     const products = result.rows.map(product => ({
       ...product,
       imageUrl: product.image ? `${req.protocol}://${req.get('host')}/products/${product.id}/image` : null
@@ -90,6 +91,7 @@ app.get('/products', async (req, res) => {
 app.get('/shoes', async (req, res) => {
   try {
     const result = await myDb.query('SELECT * FROM shoes');
+    
     const shoes = result.rows.map(shoe => ({
       ...shoe,
       imageUrl: shoe.image ? `${req.protocol}://${req.get('host')}/shoes/${shoe.id}/image` : null
@@ -101,6 +103,7 @@ app.get('/shoes', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch shoes' });
   }
 });
+
 
 
 // Fetch product image as binary from the database
