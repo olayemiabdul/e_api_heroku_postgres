@@ -76,7 +76,7 @@ app.get('/products', async (req, res) => {
     const result = await myDb.query('SELECT * FROM products');
     const products = result.rows.map(product => ({
       ...product,
-      image_url: product.image ? `${req.protocol}://${req.get('host')}/products/${product.id}/image` : null
+      imageUrl: product.image ? `${req.protocol}://${req.get('host')}/products/${product.id}/image` : null
     }));
 
     res.json(products);
@@ -92,7 +92,7 @@ app.get('/shoes', async (req, res) => {
     const result = await myDb.query('SELECT * FROM shoes');
     const shoes = result.rows.map(shoe => ({
       ...shoe,
-      image_url: shoe.image ? `${req.protocol}://${req.get('host')}/shoes/${shoe.id}/image` : null
+      imageUrl: shoe.image ? `${req.protocol}://${req.get('host')}/shoes/${shoe.id}/image` : null
     }));
 
     res.json(shoes);
