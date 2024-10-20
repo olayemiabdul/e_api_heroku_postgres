@@ -25,7 +25,9 @@ const myDb = new pg.Client({
     }
   });
 
-myDb.connect();
+  myDb.connect()
+  .then(() => console.log('Connected to the database'))
+  .catch(err => console.error('Connection error', err.stack));
 
 // Add a new product with image to database nadrah and table products
 app.post('/products', upload.single('image'), async (req, res) => {

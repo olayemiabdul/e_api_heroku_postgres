@@ -5,5 +5,8 @@ CREATE TABLE shoes (
   price NUMERIC(10, 2) NOT NULL,
   quantity INT NOT NULL,
   image BYTEA,
-  mimetype VARCHAR(255)
+  imageUrl TEXT,
+  mimetype VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
