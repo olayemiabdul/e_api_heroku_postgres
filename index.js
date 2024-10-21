@@ -35,13 +35,13 @@ app.post('/products', upload.single('image'), async (req, res) => {
   const { name, description, price, quantity } = req.body;
   
   //  Get image buffer and mimetype from the uploaded file
-  const image = req.file ? req.file.buffer : null;
+  const imageUrl = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` : null;
   const mimetype = req.file ? req.file.mimetype : null;
 
   try {
     const result = await myDb.query(
       'INSERT INTO products (name, description, price, quantity, image, mimetype) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [name, description, parseFloat(price), parseInt(quantity), image, mimetype]
+      [name, description, parseFloat(price), parseInt(quantity), imageUrl, mimetype]
     );
     
     res.status(201).json(result.rows[0]);
@@ -54,13 +54,13 @@ app.post('/products', upload.single('image'), async (req, res) => {
 // Add a new shoe with image to the 'shoes' table
 app.post('/shoes', upload.single('image'), async (req, res) => {
   const { name, description, price, quantity } = req.body;
-  const image = req.file ? req.file.buffer : null;
+  const imageUrl = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` : null;
   const mimetype = req.file ? req.file.mimetype : null;
 
   try {
     const result = await myDb.query(
       'INSERT INTO shoes (name, description, price, quantity, image, mimetype) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [name, description, parseFloat(price), parseInt(quantity), image, mimetype]
+      [name, description, parseFloat(price), parseInt(quantity), imageUrl, mimetype]
     );
     
     res.status(201).json(result.rows[0]);
@@ -71,14 +71,32 @@ app.post('/shoes', upload.single('image'), async (req, res) => {
 });
 
 // Fetching all products with image URLs
+// app.get('/products', async (req, res) => {
+//   try {
+//     const result = await myDb.query('SELECT * FROM products');
+    
+//     const products = result.rows.map(product => ({
+//       ...product,
+//       imageUrl: product.image ? `${req.protocol}://${req.get('host')}/products/${product.id}/image` : null
+//     }));
+
+//     res.json(products);
+//   } catch (err) {
+//     console.log(err);
+//     res.status(500).json({ error: 'Failed to fetch products' });
+//   }
+// });
 app.get('/products', async (req, res) => {
   try {
     const result = await myDb.query('SELECT * FROM products');
     
-    const products = result.rows.map(product => ({
-      ...product,
-      imageUrl: product.image ? `${req.protocol}://${req.get('host')}/products/${product.id}/image` : null
-    }));
+    const products = result.rows.map(product => {
+      const { image, ...rest } = product;  // Remove the 'image' field
+      return {
+        ...rest,
+        imageUrl: product.image ? `${req.protocol}://${req.get('host')}/products/${product.id}/image` : null
+      };
+    });
 
     res.json(products);
   } catch (err) {
@@ -86,27 +104,43 @@ app.get('/products', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch products' });
   }
 });
-
-// Fetching all shoes with image URLs
 app.get('/shoes', async (req, res) => {
   try {
     const result = await myDb.query('SELECT * FROM shoes');
     
-    const shoes = result.rows.map(shoe => ({
-      ...shoe,
-      imageUrl: shoe.image ? `${req.protocol}://${req.get('host')}/shoes/${shoe.id}/image` : null
-    }));
+    const shoes = result.rows.map(product => {
+      const { image, ...rest } = product;  // Remove the 'image' field
+      return {
+        ...rest,
+        imageUrl: product.image ? `${req.protocol}://${req.get('host')}/products/${product.id}/image` : null
+      };
+    });
 
     res.json(shoes);
   } catch (err) {
     console.log(err);
-    res.status(500).json({ error: 'Failed to fetch shoes' });
+    res.status(500).json({ error: 'Failed to fetch products' });
   }
 });
 
 
+// Fetching all shoes with image URLs
+// app.get('/shoes', async (req, res) => {
+//   try {
+//     const result = await myDb.query('SELECT * FROM shoes');
+    
+//     const shoes = result.rows.map(shoe => ({
+//       ...shoe,
+//       imageUrl: shoe.image ? `${req.protocol}://${req.get('host')}/shoes/${shoe.id}/image` : null
+//     }));
 
-// Fetch product image as binary from the database
+//     res.json(shoes);
+//   } catch (err) {
+//     console.log(err);
+//     res.status(500).json({ error: 'Failed to fetch shoes' });
+//   }
+// });
+
 app.get('/products/:id/image', async (req, res) => {
   const id = req.params.id;
 
@@ -148,7 +182,7 @@ app.get('/shoes/:id/image', async (req, res) => {
 app.patch('/products/:id', upload.single('image'), async (req, res) => {
   const id = parseInt(req.params.id);
   let { name, description, price, quantity } = req.body;
-  const image = req.file ? req.file.buffer : null;
+  const imageUrl = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` : null;
   const mimetype = req.file ? req.file.mimetype : null;
 
   // Convert price and quantity if they exist
@@ -167,7 +201,7 @@ app.patch('/products/:id', upload.single('image'), async (req, res) => {
            mimetype = COALESCE($6, mimetype)
        WHERE id = $7
        RETURNING *`,
-      [name, description, price, quantity, image, mimetype, id]
+      [name, description, price, quantity, imageUrl, mimetype, id]
     );
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
@@ -182,7 +216,7 @@ app.patch('/products/:id', upload.single('image'), async (req, res) => {
 app.patch('/shoes/:id', upload.single('image'), async (req, res) => {
   const id = parseInt(req.params.id);
   let { name, description, price, quantity } = req.body;
-  const image = req.file ? req.file.buffer : null;
+  const imageUrl = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` : null;
   const mimetype = req.file ? req.file.mimetype : null;
 
   price = price ? parseFloat(price) : null;
@@ -199,7 +233,7 @@ app.patch('/shoes/:id', upload.single('image'), async (req, res) => {
            mimetype = COALESCE($6, mimetype)
        WHERE id = $7
        RETURNING *`,
-      [name, description, price, quantity, image, mimetype, id]
+      [name, description, price, quantity, imageUrl, mimetype, id]
     );
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Shoe not found' });
