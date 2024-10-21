@@ -73,8 +73,7 @@ app.post('/shoes', upload.single('image'), async (req, res) => {
 // Fetching all products with image URLs
 app.get('/products', async (req, res) => {
   try {
-    //const result = await myDb.query('SELECT * FROM products'); not returning all to avoid image binary
-    const result = await myDb.query('SELECT id, name, description, price, quantity, mimetype, created_at, updated_at FROM products');
+    const result = await myDb.query('SELECT * FROM products');
     
     const products = result.rows.map(product => ({
       ...product,
@@ -91,8 +90,7 @@ app.get('/products', async (req, res) => {
 // Fetching all shoes with image URLs
 app.get('/shoes', async (req, res) => {
   try {
-    //const result = await myDb.query('SELECT * FROM shoes');
-    const result = await myDb.query('SELECT id, name, description, price, quantity, mimetype, created_at, updated_at FROM products');
+    const result = await myDb.query('SELECT * FROM shoes');
     
     const shoes = result.rows.map(shoe => ({
       ...shoe,
