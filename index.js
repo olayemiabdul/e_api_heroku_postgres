@@ -40,8 +40,8 @@ app.post('/products', upload.single('image'), async (req, res) => {
 
   try {
     const result = await myDb.query(
-      'INSERT INTO products (name, description, price, quantity,  imageUrl) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [name, description, parseFloat(price), parseInt(quantity),  imageUrl]
+      'INSERT INTO products (name, description, price, quantity, image, mimetype) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [name, description, parseFloat(price), parseInt(quantity), image, mimetype]
     );
     
     res.status(201).json(result.rows[0]);
@@ -59,8 +59,8 @@ app.post('/shoes', upload.single('image'), async (req, res) => {
 
   try {
     const result = await myDb.query(
-      'INSERT INTO shoes (name, description, price, quantity,  imageUrl) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [name, description, parseFloat(price), parseInt(quantity),  imageUrl]
+      'INSERT INTO shoes (name, description, price, quantity, image, mimetype) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [name, description, parseFloat(price), parseInt(quantity), image, mimetype]
     );
     
     res.status(201).json(result.rows[0]);
