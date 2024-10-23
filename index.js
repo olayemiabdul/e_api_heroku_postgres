@@ -52,7 +52,7 @@ db.connect()
 
 // Helper functions
 const generateImageUrl = (req, type, id) => {
-  const baseUrl = process.env.NODE_ENV === 'production' 
+  const baseUrl = process.env.DATABASE_URL === 'production' 
     ? process.env.APP_URL 
     : `${req.protocol}://${req.get('host')}`;
   return `${baseUrl}/${type}/${id}/image`;
@@ -62,7 +62,7 @@ const handleDatabaseError = (err, res, operation) => {
   console.error(`Database error during ${operation}:`, err);
   res.status(500).json({ 
     error: `Failed to ${operation}`,
-    details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    details: process.env.DATABASE_URL === 'development' ? err.message : undefined
   });
 };
 
@@ -116,7 +116,7 @@ const getImage = async (req, res, tableName) => {
     }
 
     // Cache images in production
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.DATABASE_URL === 'production') {
       res.set('Cache-Control', 'public, max-age=31557600'); // Cache for 1 year
       res.set('ETag', `"${id}"`);
     }
@@ -201,7 +201,7 @@ app.use((err, req, res, next) => {
   }
   res.status(500).json({ 
     error: 'Internal server error',
-    details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    details: process.env.DATABASE_URL === 'development' ? err.message : undefined
   });
 });
 
