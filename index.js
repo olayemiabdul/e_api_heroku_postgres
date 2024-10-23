@@ -5,159 +5,138 @@ import dotenv from "dotenv";
 import cors from "cors";
 import multer from "multer";
 
-dotenv.config();  
+dotenv.config();
 
-const app = express();  
-const port = process.env.PORT || 3000;  
+// Constants
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
+// Express setup
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(bodyParser.json());
-app.use(express.urlencoded({ extended: true })); 
+app.use(express.urlencoded({ extended: true }));
 
-// Image upload configuration
-const upload = multer({ storage: multer.memoryStorage() }); 
+// Multer configuration
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: MAX_FILE_SIZE
+  },
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG, and WebP are allowed.'));
+    }
+  }
+});
 
-// Connect to PostgreSQL on Heroku
-const myDb = new pg.Client({
+// Database setup
+const db = new pg.Client({
   connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false
   }
 });
 
-myDb.connect()
+// Connect to database
+db.connect()
   .then(() => console.log('Connected to the database'))
-  .catch(err => console.error('Connection error', err.stack));
+  .catch(err => console.error('Database connection error:', err.stack));
 
-// Add a new product with image to the 'products' table
-app.post('/products', upload.single('image'), async (req, res) => {
+// Helper functions
+const generateImageUrl = (req, type, id) => {
+  const baseUrl = process.env.NODE_ENV === 'production' 
+    ? process.env.APP_URL 
+    : `${req.protocol}://${req.get('host')}`;
+  return `${baseUrl}/${type}/${id}/image`;
+};
+
+const handleDatabaseError = (err, res, operation) => {
+  console.error(`Database error during ${operation}:`, err);
+  res.status(500).json({ 
+    error: `Failed to ${operation}`,
+    details: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+};
+
+// Generic CRUD operations for both products and shoes
+const createItem = async (req, res, tableName) => {
   const { name, description, price, quantity } = req.body;
-  
-  //  Get image buffer and mimetype from the uploaded file
-  const image = req.file ? req.file.buffer : null;
-  const mimetype = req.file ? req.file.mimetype : null;
+  const image = req.file?.buffer || null;
+  const mimetype = req.file?.mimetype || null;
 
   try {
-    const result = await myDb.query(
-      'INSERT INTO products (name, description, price, quantity, image, mimetype) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+    const result = await db.query(
+      `INSERT INTO ${tableName} (name, description, price, quantity, image, mimetype) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
+       RETURNING id, name, description, price, quantity, mimetype`,
       [name, description, parseFloat(price), parseInt(quantity), image, mimetype]
     );
     
-    res.status(201).json(result.rows[0]);
+    const item = result.rows[0];
+    item.imageUrl = item.id ? generateImageUrl(req, tableName, item.id) : null;
+    
+    res.status(201).json(item);
   } catch (err) {
-    console.log(err);
-    res.status(500).json({ error: 'Failed to create product' });
+    handleDatabaseError(err, res, `create ${tableName}`);
   }
-});
+};
 
-// Add a new shoe with image to the 'shoes' table
-app.post('/shoes', upload.single('image'), async (req, res) => {
-  const { name, description, price, quantity } = req.body;
-  const image = req.file ? req.file.buffer : null;
-  const mimetype = req.file ? req.file.mimetype : null;
+const getItems = async (req, res, tableName) => {
+  try {
+    const result = await db.query(`SELECT id, name, description, price, quantity, mimetype FROM ${tableName}`);
+    const items = result.rows.map(item => ({
+      ...item,
+      imageUrl: generateImageUrl(req, tableName, item.id)
+    }));
+    res.json(items);
+  } catch (err) {
+    handleDatabaseError(err, res, `fetch ${tableName}`);
+  }
+};
+
+const getImage = async (req, res, tableName) => {
+  const { id } = req.params;
 
   try {
-    const result = await myDb.query(
-      'INSERT INTO shoes (name, description, price, quantity, image, mimetype) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [name, description, parseFloat(price), parseInt(quantity), image, mimetype]
+    const result = await db.query(
+      `SELECT image, mimetype FROM ${tableName} WHERE id = $1`,
+      [id]
     );
-    
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ error: 'Failed to create shoe' });
-  }
-});
 
-// Fetching all products with image URLs
-app.get('/products', async (req, res) => {
-  try {
-    const result = await myDb.query('SELECT * FROM products');
-    
-    const products = result.rows.map(product => ({
-      ...product,
-      imageUrl: product.image ? `${req.protocol}://${req.get('host')}/products/${product.id}/image` : null
-    }));
-
-    res.json(products);
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ error: 'Failed to fetch products' });
-  }
-});
-
-// Fetching all shoes with image URLs
-app.get('/shoes', async (req, res) => {
-  try {
-    const result = await myDb.query('SELECT * FROM shoes');
-    
-    const shoes = result.rows.map(shoe => ({
-      ...shoe,
-      imageUrl: shoe.image ? `${req.protocol}://${req.get('host')}/shoes/${shoe.id}/image` : null
-    }));
-
-    res.json(shoes);
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ error: 'Failed to fetch shoes' });
-  }
-});
-
-
-
-
-app.get('/products/:id/image', async (req, res) => {
-  const id = req.params.id;
-
-  try {
-    const result = await myDb.query('SELECT image, mimetype FROM products WHERE id = $1', [id]);
-
-    if (result.rows.length > 0 && result.rows[0].image) {
-      res.set('Content-Type', result.rows[0].mimetype); // Use dynamic mimetype
-      res.send(result.rows[0].image);
-    } else {
-      res.status(404).json({ error: 'Image not found' });
+    if (result.rows.length === 0 || !result.rows[0].image) {
+      return res.status(404).json({ error: 'Image not found' });
     }
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ error: 'Failed to fetch image' });
-  }
-});
 
-app.get('/shoes/:id/image', async (req, res) => {
-  const id = req.params.id;
-
-  try {
-    const result = await myDb.query('SELECT image, mimetype FROM shoes WHERE id = $1', [id]);
-
-    if (result.rows.length > 0 && result.rows[0].image) {
-      res.set('Content-Type', result.rows[0].mimetype); // Use dynamic mimetype
-      res.send(result.rows[0].image);
-    } else {
-      res.status(404).json({ error: 'Image not found' });
+    // Cache images in production
+    if (process.env.NODE_ENV === 'production') {
+      res.set('Cache-Control', 'public, max-age=31557600'); // Cache for 1 year
+      res.set('ETag', `"${id}"`);
     }
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ error: 'Failed to fetch image' });
-  }
-});
 
-// PATCH - Partially update a product by ID
-app.patch('/products/:id', upload.single('image'), async (req, res) => {
+    res.set('Content-Type', result.rows[0].mimetype);
+    res.send(result.rows[0].image);
+  } catch (err) {
+    handleDatabaseError(err, res, 'fetch image');
+  }
+};
+
+const updateItem = async (req, res, tableName) => {
   const id = parseInt(req.params.id);
   let { name, description, price, quantity } = req.body;
-  const image = req.file ? req.file.buffer : null;
-  const mimetype = req.file ? req.file.mimetype : null;
-
-  // Convert price and quantity if they exist
-  price = price ? parseFloat(price) : null;
-  quantity = quantity ? parseInt(quantity) : null;
+  const image = req.file?.buffer || null;
+  const mimetype = req.file?.mimetype || null;
 
   try {
-    // Only update fields that were provided
-    const result = await myDb.query(
-      `UPDATE products
+    const result = await db.query(
+      `UPDATE ${tableName}
        SET name = COALESCE($1, name),
            description = COALESCE($2, description),
            price = COALESCE($3, price),
@@ -165,78 +144,74 @@ app.patch('/products/:id', upload.single('image'), async (req, res) => {
            image = COALESCE($5, image),
            mimetype = COALESCE($6, mimetype)
        WHERE id = $7
-       RETURNING *`,
-      [name, description, price, quantity, image, mimetype, id]
+       RETURNING id, name, description, price, quantity`,
+      [name, description, price ? parseFloat(price) : null, 
+       quantity ? parseInt(quantity) : null, image, mimetype, id]
     );
 
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
-    res.json(result.rows[0]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: `${tableName} not found` });
+    }
+
+    const item = result.rows[0];
+    item.imageUrl = generateImageUrl(req, tableName, item.id);
+    res.json(item);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to update product' });
+    handleDatabaseError(err, res, `update ${tableName}`);
   }
-});
+};
 
-// PATCH - Partially update a shoe by ID
-app.patch('/shoes/:id', upload.single('image'), async (req, res) => {
-  const id = parseInt(req.params.id);
-  let { name, description, price, quantity } = req.body;
-  const image = req.file ? req.file.buffer : null;
-  const mimetype = req.file ? req.file.mimetype : null;
-
-  price = price ? parseFloat(price) : null;
-  quantity = quantity ? parseInt(quantity) : null;
-
-  try {
-    const result = await myDb.query(
-      `UPDATE shoes
-       SET name = COALESCE($1, name),
-           description = COALESCE($2, description),
-           price = COALESCE($3, price),
-           quantity = COALESCE($4, quantity),
-           image = COALESCE($5, image),
-           mimetype = COALESCE($6, mimetype)
-       WHERE id = $7
-       RETURNING *`,
-      [name, description, price, quantity, image, mimetype, id]
-    );
-
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Shoe not found' });
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to update shoe' });
-  }
-});
-
-// DELETE - Remove a product by ID
-app.delete('/products/:id', async (req, res) => {
+const deleteItem = async (req, res, tableName) => {
   const id = parseInt(req.params.id);
 
   try {
-    const result = await myDb.query('DELETE FROM products WHERE id = $1 RETURNING *', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
-    res.json({ message: 'Product deleted successfully' });
+    const result = await db.query(`DELETE FROM ${tableName} WHERE id = $1 RETURNING id`, [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: `${tableName} not found` });
+    }
+    res.json({ message: `${tableName} deleted successfully` });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to delete product' });
+    handleDatabaseError(err, res, `delete ${tableName}`);
   }
+};
+
+// Routes
+// Products
+app.post('/products', upload.single('image'), (req, res) => createItem(req, res, 'products'));
+app.get('/products', (req, res) => getItems(req, res, 'products'));
+app.get('/products/:id/image', (req, res) => getImage(req, res, 'products'));
+app.patch('/products/:id', upload.single('image'), (req, res) => updateItem(req, res, 'products'));
+app.delete('/products/:id', (req, res) => deleteItem(req, res, 'products'));
+
+// Shoes
+app.post('/shoes', upload.single('image'), (req, res) => createItem(req, res, 'shoes'));
+app.get('/shoes', (req, res) => getItems(req, res, 'shoes'));
+app.get('/shoes/:id/image', (req, res) => getImage(req, res, 'shoes'));
+app.patch('/shoes/:id', upload.single('image'), (req, res) => updateItem(req, res, 'shoes'));
+app.delete('/shoes/:id', (req, res) => deleteItem(req, res, 'shoes'));
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({ 
+      error: 'File upload error',
+      details: err.message 
+    });
+  }
+  res.status(500).json({ 
+    error: 'Internal server error',
+    details: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
 });
 
-// DELETE - Remove a shoe by ID
-app.delete('/shoes/:id', async (req, res) => {
-  const id = parseInt(req.params.id);
-
-  try {
-    const result = await myDb.query('DELETE FROM shoes WHERE id = $1 RETURNING *', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Shoe not found' });
-    res.json({ message: 'Shoe deleted successfully' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to delete shoe' });
-  }
-});
-
+// Start server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  db.end();
+  process.exit(0);
 });
