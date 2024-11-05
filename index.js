@@ -7,8 +7,8 @@ import multer from "multer";
 
 dotenv.config();
 
-// Constants
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+// Constants defination
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB as mas
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 // Express setup
@@ -37,9 +37,9 @@ const upload = multer({
   }
 });
 
-// Database setup
+// Heroku Database 
 const db = new pg.Client({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL || 'postgres://uba871efd7fmdc:p10b5330773828fdbba94c1149faa1c08c8620ad4995be0326cfdc728095ac085@ccpa7stkruda3o.cluster-czrs8kj4isg7.us-east-1.rds.amazonaws.com:5432/dbr2k67ajhviqk',
   ssl: {
     rejectUnauthorized: false
   }
